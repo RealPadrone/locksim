@@ -1,0 +1,262 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+
+<html lang="sv">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Locksim</title>
+</head>
+
+<body bgcolor="#ffffff" text="#000000" link="#0000cc" vlink="#551a8b" alink="#ff0000">
+
+
+
+<h1>Locksim</h1>
+
+<b>Locksim</b> is a simulator for database locking,
+to try out various locking methods such as two-phase locking.
+It supports multiple transactions and both binary and read/write locks.
+
+
+
+<h2>Usage</h2>
+
+A <b>scenario</b> with database data and specification of the transactions is
+written in a text file. Then <b>locksim</b> is started using the command line:
+
+<blockquote>
+<pre>
+locksim  SCENARIO-FILE  REPS</b>
+</pre>
+</blockquote>
+
+<b>SCENARIO-FILE</b> is the name of the scenario file.
+<b>REPS</b>, which is optional, is the number of times to run the scenario.
+
+
+
+<h2>An example scenario</h2>
+
+Lotta and Kalle are friends.
+They have some money in their bank accounts, and both of them want to give
+away their money to the other person.
+Here is a scenario file called <b>swap.txt</b>:
+
+<blockquote>
+<pre>
+Lotta = 100;
+Kalle = 50;
+
+transaction T1 {
+    Read(Lotta);
+    Gift = Lotta;
+    Lotta = 0;
+    Write(Lotta);
+    Read(Kalle);
+    Kalle = Kalle + Gift;
+    Write(Kalle);
+}
+
+transaction T2 {
+    Read(Kalle);
+    Gift = Kalle;
+    Kalle = 0;
+    Write(Kalle);
+    Read(Lotta);
+    Lotta = Lotta + Gift;
+    Write(Lotta);
+}
+</pre>
+</blockquote>
+
+The database contains two data objects, the variables <b>Lotta</b> and <b>Kalle</b>,
+which are the balances of two bank accounts belonging to Lotta and Kalle.
+In transaction <b>T1</b> Lotta gives away her money to Kalle.
+In transaction <b>T2</b> Kalle gives away his money to Lotta.
+
+<p>
+
+Some explanations of the commands in the file:
+
+<ul>
+<li>
+The command <b>Read(X)</b> reads the data item <b>X</b> from the database,
+and puts a copy in a transaction-local variable also called <b>X</b>.
+
+<li>
+The command <b>Write(X)</b> writes to the data item <b>X</b> in the database,
+copying the value from a transaction-local variable also called <b>X</b>.
+
+<li>
+When the command <b>X = 17</b> is used inside a transaction,
+it sets the transaction-local variable <b>X</b> to the value <b>17</b>.
+
+<li>
+When the command <b>X = 17</b> is used <i>before</i> any transactions,
+it creates a data item called <b>X</b> in the database,
+and sets it to the value <b>17</b>.
+
+</ul>
+
+<p>
+
+If the transactions are run serially, or in a serializable schedule,
+one person ends up with all the money, and the other none.
+Either Kalle will first give all his money to Lotta, and Lotta will then give all the money to Kalle,
+so Kalle ends up with all the money and Lotta none,
+or Lotta will first give all her money to Kalle, and Kalle will then give all the money to Lotta,
+so Lotta ends up with all the money and Kalle none,
+
+<p>
+
+We run the scenario one million times with this command:
+
+<blockquote>
+<pre>
+locksim swap.txt 1000000
+</pre>
+</blockquote>
+
+Since the two transactions concurrently modify the variables without locking,
+we can get some unexpected results.
+Here is the output from Locksim:
+
+<blockquote>
+<pre>
+Tried the scenario in 'swap.txt' 1000000 times.
+There were 7 different results:
+7784 times: 2 variables: Lotta = 150, Kalle = 0
+7872 times: 2 variables: Lotta = 0, Kalle = 150
+190597 times: 2 variables: Lotta = 150, Kalle = 100
+192107 times: 2 variables: Lotta = 50, Kalle = 150
+163713 times: 2 variables: Lotta = 50, Kalle = 0
+273673 times: 2 variables: Lotta = 50, Kalle = 100
+164254 times: 2 variables: Lotta = 0, Kalle = 100
+</pre>
+</blockquote>
+
+To avoid these concurrency problems, we can add locking.
+Here we have used two-phase locking with read/write locks:
+
+<blockquote>
+<pre>
+Lotta = 100;
+Kalle = 50;
+
+transaction Lotta {
+    ReadLock(Lotta);
+    Read(Lotta);
+    Gift = Lotta;
+    Lotta = 0;
+    WriteLock(Lotta);
+    Write(Lotta);
+    ReadLock(Kalle);
+    Read(Kalle);
+    Kalle = Kalle + Gift;
+    WriteLock(Kalle);
+    Unlock(Lotta);
+    Write(Kalle);
+    Unlock(Kalle);
+}
+
+transaction Kalle {
+    ReadLock(Kalle);
+    Read(Kalle);
+    Gift = Kalle;
+    Kalle = 0;
+    WriteLock(Kalle);
+    Write(Kalle);
+    ReadLock(Lotta);
+    Read(Lotta);
+    Lotta = Lotta + Gift;
+    WriteLock(Lotta);
+    Unlock(Kalle);
+    Write(Lotta);
+    Unlock(Lotta);
+}
+</pre>
+</blockquote>
+
+<p>
+
+Some explanations of the locking commands:
+
+<ul>
+
+<li>
+<b>ReadLock(X)</b> requests a shared lock for the data item <b>X</b> in the database.
+If some other transaction has an exclusive lock, <b>X</b> can not be locked,
+and this transaction will wait until it gets the lock.
+If this transaction already had an exclusive lock on <b>X</b>, it is downgraded to a shared lock.
+If this transaction already had a shared lock on <b>X</b>, nothing happens.
+
+<li>
+<b>WriteLock(X)</b> requests an exclusive lock for the data item <b>X</b> in the database.
+If some other transaction has an exclusive or shared lock, <b>X</b> can not be locked,
+and this transaction will wait until it gets the lock.
+If this transaction already had a shared lock on <b>X</b>, it is upgraded to a shared lock (or the transaction waits).
+If this transaction already had an exclusive lock on <b>X</b>, nothing happens.
+
+<li>
+<b>Unlock(X)</b> releases the shared or exclusive lock that this transaction has for the data item <b>X</b> in the database.
+If this transaction doesn't have lock on <b>X</b>, nothing happens.
+
+<li>
+<b>Lock(X)</b> is a synonym for <b>WriteLock(X)</b>.
+
+</ul>
+
+<p>
+
+Now the output from Locksim looks like this:
+
+<blockquote>
+<pre>
+Tried the scenario in 'swap-rw-2PL'.txt 1000000 times.
+There were 5 different results:
+995 times: 2 variables: Lotta = 150, Kalle = 0
+966 times: 2 variables: Lotta = 0, Kalle = 150
+273976 times: *** Deadlock! *** 2 variables: Lotta = 0, Kalle = 50
+*** Deadlock! ***
+272769 times: *** Deadlock! *** 2 variables: Lotta = 100, Kalle = 0
+*** Deadlock! ***
+451294 times: *** Deadlock! *** 2 variables: Lotta = 0, Kalle = 0
+*** Deadlock! ***
+</pre>
+</blockquote>
+
+As we can see, sometimes our locking schema leads to deadlock,
+but when the scenario is finished without deadlock,
+we get only the two expected results.
+
+
+
+<h2>Some notes</h2>
+
+<ul>
+
+<li>
+Since this is a locking simulator and not a scheduler,
+you can create all sorts of strange and incorrect locking schemes.
+
+<li>
+Locking is discretionary.
+If a transaction doesn't request a lock on a variable,
+it can still accesses it.
+
+<li>
+If a transaction still has locks when it ends, those locks will not be released until the scenario ends.
+
+</ul>
+
+<p>
+
+<hr>
+
+<font size=-1>
+<a href="http://www.aass.oru.se/~tpy/">Thomas Padron-McCarthy</a>
+(<a href="mailto:thomas.padron-mccarthy@oru.se?subject=Locksim">thomas.padron-mccarthy@oru.se</a>),
+November 22, 2014
+</font>
+
+</body>
+</html>
