@@ -25,12 +25,21 @@ written in a text file. Then <b>locksim</b> is started using the command line:
 
 <blockquote>
 <pre>
-locksim  SCENARIO-FILE  REPS</b>
+locksim  [ -v VERBOSITY ]  [ -s SEED ]  [ -r REPS ] SCENARIO-FILE
 </pre>
 </blockquote>
 
 <b>SCENARIO-FILE</b> is the name of the scenario file.
-<b>REPS</b>, which is optional, is the number of times to run the scenario.
+The optional <b>REPS</b> is the number of times to run the scenario. The default is 1.
+The optional <b>SEED</b> is the seed used for the pseudo-random number generator.
+The default is a seed based on the current time.
+
+<p>
+
+The optional <b>VERBOSITY</b> is the verbosity level, i. e. how much the program should print.
+The default is 1, and prints the results after each execution of the scenario,
+plus a summary at the end. Verbosity level 0 only prints the summary at the end.
+Higher verbosity levels (2 and 3) will add more printouts about what happens.
 
 
 
@@ -46,7 +55,7 @@ Here is a scenario file called <b>swap.txt</b>:
 Lotta = 100;
 Kalle = 50;
 
-transaction T1 {
+transaction Lotta {
     Read(Lotta);
     Gift = Lotta;
     Lotta = 0;
@@ -56,7 +65,7 @@ transaction T1 {
     Write(Kalle);
 }
 
-transaction T2 {
+transaction Kalle {
     Read(Kalle);
     Gift = Kalle;
     Kalle = 0;
@@ -112,7 +121,7 @@ We run the scenario one million times with this command:
 
 <blockquote>
 <pre>
-locksim swap.txt 1000000
+locksim -r 1000000 -v 0 swap.txt 
 </pre>
 </blockquote>
 
@@ -124,13 +133,13 @@ Here is the output from Locksim:
 <pre>
 Tried the scenario in 'swap.txt' 1000000 times.
 There were 7 different results:
-7784 times: 2 variables: Lotta = 150, Kalle = 0
-7872 times: 2 variables: Lotta = 0, Kalle = 150
-190597 times: 2 variables: Lotta = 150, Kalle = 100
-192107 times: 2 variables: Lotta = 50, Kalle = 150
-163713 times: 2 variables: Lotta = 50, Kalle = 0
-273673 times: 2 variables: Lotta = 50, Kalle = 100
-164254 times: 2 variables: Lotta = 0, Kalle = 100
+7780 times: 2 variables: Lotta = 150, Kalle = 0
+7857 times: 2 variables: Lotta = 0, Kalle = 150
+273523 times: 2 variables: Lotta = 50, Kalle = 100
+192036 times: 2 variables: Lotta = 150, Kalle = 100
+163699 times: 2 variables: Lotta = 0, Kalle = 100
+191644 times: 2 variables: Lotta = 50, Kalle = 150
+163461 times: 2 variables: Lotta = 50, Kalle = 0
 </pre>
 </blockquote>
 
@@ -211,20 +220,20 @@ Now the output from Locksim looks like this:
 
 <blockquote>
 <pre>
-Tried the scenario in 'swap-rw-2PL'.txt 1000000 times.
+Tried the scenario in 'swap-rw-2PL.txt' 1000000 times.
 There were 5 different results:
-995 times: 2 variables: Lotta = 150, Kalle = 0
-966 times: 2 variables: Lotta = 0, Kalle = 150
-273976 times: *** Deadlock! *** 2 variables: Lotta = 0, Kalle = 50
+940 times: 2 variables: Lotta = 150, Kalle = 0
+935 times: 2 variables: Lotta = 0, Kalle = 150
+453221 times: *** Deadlock! *** 2 variables: Lotta = 0, Kalle = 0
 *** Deadlock! ***
-272769 times: *** Deadlock! *** 2 variables: Lotta = 100, Kalle = 0
+272600 times: *** Deadlock! *** 2 variables: Lotta = 0, Kalle = 50
 *** Deadlock! ***
-451294 times: *** Deadlock! *** 2 variables: Lotta = 0, Kalle = 0
+272304 times: *** Deadlock! *** 2 variables: Lotta = 100, Kalle = 0
 *** Deadlock! ***
 </pre>
 </blockquote>
 
-As we can see, sometimes our locking schema leads to deadlock,
+As we can see, this locking schema most often leads to deadlock,
 but when the scenario is finished without deadlock,
 we get only the two expected results.
 
@@ -240,13 +249,23 @@ you can create all sorts of strange and incorrect locking schemes.
 
 <li>
 Locking is discretionary.
-If a transaction doesn't request a lock on a variable,
-it can still accesses it.
+A transaction can read and write a variable even if it doesn't have a lock on it.
+If the verbosity level isn't zero,
+warnings are printed when a transaction accesses a variable without a lock.
 
 <li>
 If a transaction still has locks when it ends, those locks will not be released until the scenario ends.
 
 </ul>
+
+
+
+<h2>License</h2>
+
+Locksim is free software licensed under the
+<a href="http://www.gnu.org/licenses/gpl-2.0.txt">GNU General Public License version 2</a>.
+Share and enjoy.
+No warranty.
 
 <p>
 
@@ -255,7 +274,7 @@ If a transaction still has locks when it ends, those locks will not be released 
 <font size=-1>
 <a href="http://www.aass.oru.se/~tpy/">Thomas Padron-McCarthy</a>
 (<a href="mailto:thomas.padron-mccarthy@oru.se?subject=Locksim">thomas.padron-mccarthy@oru.se</a>),
-November 22, 2014
+December 8, 2014
 </font>
 
 </body>
